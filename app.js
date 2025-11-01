@@ -1752,6 +1752,18 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 // Check if already logged in (Firebase auth persistence)
 let isInitializing = false;
+
+// Set timeout untuk loading screen - jika > 10 detik, force show login
+setTimeout(() => {
+    const loadingEl = document.getElementById('initial-loading');
+    if (loadingEl && loadingEl.style.display !== 'none') {
+        console.warn('⚠️ Loading timeout - showing login page');
+        loadingEl.style.display = 'none';
+        document.getElementById('login-page').style.display = 'flex';
+        document.getElementById('main-app').style.display = 'none';
+    }
+}, 10000); // 10 seconds timeout
+
 firebase.auth().onAuthStateChanged(async (user) => {
     console.log('🔄 Auth state changed:', user ? user.email : 'No user');
     
