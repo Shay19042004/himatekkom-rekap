@@ -397,6 +397,8 @@
     
     <!-- Firebase Configuration -->
     <script>
+        console.log('🔥 Starting Firebase initialization...');
+        
         // Your Firebase project configuration
         const firebaseConfig = {
             apiKey: "AIzaSyC7Ga40Urbrc5tKRcBoZb0PL_hwRDU5aVg",
@@ -409,11 +411,22 @@
         };
         
         // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        
-        // Initialize Analytics (optional)
-        if (typeof firebase.analytics === 'function') {
-            firebase.analytics();
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log('✅ Firebase initialized successfully');
+            
+            // Initialize Analytics (optional)
+            if (typeof firebase.analytics === 'function') {
+                firebase.analytics();
+                console.log('✅ Firebase Analytics initialized');
+            }
+        } catch (error) {
+            console.error('❌ Firebase initialization error:', error);
+            // Force show login page if Firebase fails
+            setTimeout(() => {
+                document.getElementById('initial-loading').style.display = 'none';
+                document.getElementById('login-page').style.display = 'flex';
+            }, 1000);
         }
     </script>
     
