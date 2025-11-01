@@ -640,20 +640,34 @@ class DataManager {
                 const product = this.getProduct(sale.productId);
                 productMap[sale.productId] = {
                     productName: product ? product.name : 'Unknown',
-                    quantity: 0,
+                    totalSold: 0,
                     revenue: 0,
                     cost: 0,
                     profit: 0
                 };
             }
 
-            productMap[sale.productId].quantity += sale.quantity;
+            productMap[sale.productId].totalSold += sale.quantity;
             productMap[sale.productId].revenue += sale.revenue;
             productMap[sale.productId].cost += sale.cost;
             productMap[sale.productId].profit += sale.profit;
         });
 
-        return Object.values(productMap);
+        const items = Object.values(productMap);
+        
+        // Calculate summary
+        const summary = {
+            totalRevenue: items.reduce((sum, item) => sum + item.revenue, 0),
+            totalCost: items.reduce((sum, item) => sum + item.cost, 0),
+            totalProfit: items.reduce((sum, item) => sum + item.profit, 0),
+            profitMargin: 0
+        };
+        
+        summary.profitMargin = summary.totalRevenue > 0 
+            ? (summary.totalProfit / summary.totalRevenue * 100) 
+            : 0;
+
+        return { items, summary };
     }
 }
 
