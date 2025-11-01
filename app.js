@@ -939,8 +939,10 @@ class UIManager {
 
             if (product) {
                 this.dm.updateProduct(productId, productData);
+                this.showSuccessAlert('Produk berhasil diperbarui!');
             } else {
                 this.dm.addProduct(productData);
+                this.showSuccessAlert('Produk berhasil ditambahkan!');
             }
 
             document.getElementById('modal').classList.remove('active');
@@ -1126,8 +1128,10 @@ class UIManager {
 
             if (restock) {
                 this.dm.updateRestock(restockId, restockData);
+                this.showSuccessAlert('Restok berhasil diperbarui!');
             } else {
                 this.dm.addRestock(restockData);
+                this.showSuccessAlert('Restok berhasil ditambahkan!');
             }
 
             document.getElementById('modal').classList.remove('active');
@@ -1349,8 +1353,10 @@ class UIManager {
             try {
                 if (sale) {
                     this.dm.updateSale(saleId, saleData);
+                    this.showSuccessAlert('Penjualan berhasil diperbarui!');
                 } else {
                     this.dm.addSale(saleData);
+                    this.showSuccessAlert('Penjualan berhasil ditambahkan!');
                 }
 
                 document.getElementById('modal').classList.remove('active');
