@@ -993,7 +993,7 @@ class UIManager {
         const restocks = this.dm.getAllRestocks();
 
         if (restocks.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Belum ada transaksi restok</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Belum ada transaksi restok</td></tr>';
             return;
         }
 
@@ -1011,7 +1011,6 @@ class UIManager {
                     <td>${restock.quantity} pcs</td>
                     <td>${this.formatCurrency(totalCapital)}</td>
                     <td>${this.formatCurrency(buyPrice)}</td>
-                    <td>${this.formatCurrency(totalCapital)}</td>
                     <td>
                         <button class="btn btn-primary btn-sm edit-restock-btn" data-id="${restock.id}">
                             <i class="fas fa-edit"></i>
