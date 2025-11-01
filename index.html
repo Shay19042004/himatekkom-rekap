@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Jualan Minuman</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Initial Loading Screen -->
+    <div id="initial-loading" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1f2937; display: flex; align-items: center; justify-content: center; z-index: 9999;">
+        <div style="text-align: center; color: white;">
+            <div class="spinner" style="width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+            <p style="font-size: 1rem; color: #9ca3af;">Memuat aplikasi...</p>
+        </div>
+    </div>
+    
+    <!-- Login Page -->
+    <div id="login-page" class="login-container" style="display: none;">
+        <div class="login-box">
+            <div class="login-header">
+                <img src="biglogo.svg" alt="Logo" class="login-logo">
+                <h1>HIMATEKKOM</h1>
+                <p>Sistem Rekap Showcase</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="login-username">
+                        <i class="fas fa-envelope"></i> Email
+                    </label>
+                    <input type="email" id="login-username" class="form-input" placeholder="Masukkan email" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <input type="password" id="login-password" class="form-input" placeholder="Masukkan password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="container" id="main-app" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <img src="biglogo.svg" alt="Logo" class="logo-image">
+                <h2>HIMATEKKOM</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="products">
+                    <i class="fas fa-box"></i>
+                    <span>Master Produk</span>
+                </a>
+                <a href="#" class="nav-item" data-page="restock">
+                    <i class="fas fa-truck"></i>
+                    <span>Restok Barang</span>
+                </a>
+                <a href="#" class="nav-item" data-page="sales">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Penjualan</span>
+                </a>
+                <a href="#" class="nav-item" data-page="stock">
+                    <i class="fas fa-boxes"></i>
+                    <span>Stok Barang</span>
+                </a>
+                <a href="#" class="nav-item" data-page="reports">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Laporan</span>
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Pengaturan</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="header-actions">
+                    <button class="btn btn-danger btn-sm" id="reset-data-btn" style="margin-right: 1rem;">
+                        <i class="fas fa-trash-alt"></i> Reset Data
+                    </button>
+                    <button class="btn btn-sm" id="logout-btn" style="margin-right: 1rem; background: #6b7280; color: white;">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                    <span class="date-display" id="current-date"></span>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Dashboard Page -->
+                <div id="dashboard-page" class="page active">
+                    <div class="stats-grid">
+                        <div class="stat-card primary">
+                            <div class="stat-icon">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Total Pendapatan</h3>
+                                <p class="stat-value" id="total-revenue">Rp 0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card success">
+                            <div class="stat-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Total Keuntungan</h3>
+                                <p class="stat-value" id="total-profit">Rp 0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card warning">
+                            <div class="stat-icon">
+                                <i class="fas fa-percentage"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Persentase Profit</h3>
+                                <p class="stat-value" id="profit-percentage">0%</p>
+                            </div>
+                        </div>
+                        <div class="stat-card info">
+                            <div class="stat-icon">
+                                <i class="fas fa-shopping-bag"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Total Terjual</h3>
+                                <p class="stat-value" id="total-sold">0 item</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-section">
+                        <div class="card">
+                            <h3>Ringkasan Penjualan</h3>
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Master Produk Page -->
+                <div id="products-page" class="page">
+                    <div class="page-header">
+                        <button class="btn btn-primary" id="add-product-btn">
+                            <i class="fas fa-plus"></i> Tambah Produk
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="table-container">
+                            <table id="products-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama Produk</th>
+                                        <th>Harga Jual</th>
+                                        <th>Stok Tersedia</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="products-tbody">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Belum ada produk</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Restok Page -->
+                <div id="restock-page" class="page">
+                    <div class="page-header">
+                        <button class="btn btn-primary" id="add-restock-btn">
+                            <i class="fas fa-plus"></i> Tambah Restok
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="table-container">
+                            <table id="restock-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Tanggal</th>
+                                        <th>Nama Produk</th>
+                                        <th>Jumlah</th>
+                                        <th>Harga Beli Total</th>
+                                        <th>Harga Satuan</th>
+                                        <th>Total Modal</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="restock-tbody">
+                                    <tr>
+                                        <td colspan="8" class="text-center">Belum ada transaksi restok</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Penjualan Page -->
+                <div id="sales-page" class="page">
+                    <div class="page-header">
+                        <button class="btn btn-primary" id="add-sale-btn">
+                            <i class="fas fa-plus"></i> Tambah Penjualan
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="table-container">
+                            <table id="sales-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Tanggal</th>
+                                        <th>Nama Produk</th>
+                                        <th>Jumlah Terjual</th>
+                                        <th>Harga Jual</th>
+                                        <th>Pendapatan</th>
+                                        <th>Keuntungan</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sales-tbody">
+                                    <tr>
+                                        <td colspan="8" class="text-center">Belum ada transaksi penjualan</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stok Page -->
+                <div id="stock-page" class="page">
+                    <div class="card">
+                        <h3>Stok Barang Real-time</h3>
+                        <div class="table-container">
+                            <table id="stock-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama Produk</th>
+                                        <th>Harga Jual</th>
+                                        <th>Total Restok</th>
+                                        <th>Total Terjual</th>
+                                        <th>Sisa Stok</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-tbody">
+                                    <tr>
+                                        <td colspan="7" class="text-center">Belum ada data stok</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Laporan Page -->
+                <div id="reports-page" class="page">
+                    <div class="page-header">
+                        <div class="filter-group">
+                            <label>Dari Tanggal:</label>
+                            <input type="date" id="filter-start-date" class="form-input">
+                            <label>Sampai Tanggal:</label>
+                            <input type="date" id="filter-end-date" class="form-input">
+                            <button class="btn btn-primary" id="filter-report-btn">
+                                <i class="fas fa-filter"></i> Filter
+                            </button>
+                            <button class="btn btn-success" id="export-excel-btn">
+                                <i class="fas fa-file-excel"></i> Export Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="report-summary">
+                        <div class="stat-card primary">
+                            <h4>Total Pendapatan</h4>
+                            <p class="stat-value" id="report-revenue">Rp 0</p>
+                        </div>
+                        <div class="stat-card success">
+                            <h4>Total Keuntungan</h4>
+                            <p class="stat-value" id="report-profit">Rp 0</p>
+                        </div>
+                        <div class="stat-card warning">
+                            <h4>Total Modal</h4>
+                            <p class="stat-value" id="report-capital">Rp 0</p>
+                        </div>
+                        <div class="stat-card info">
+                            <h4>Margin Profit</h4>
+                            <p class="stat-value" id="report-margin">0%</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Detail Laporan Penjualan</h3>
+                        <div class="table-container">
+                            <table id="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nama Produk</th>
+                                        <th>Total Terjual</th>
+                                        <th>Pendapatan</th>
+                                        <th>Modal</th>
+                                        <th>Keuntungan</th>
+                                        <th>Margin (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-tbody">
+                                    <tr>
+                                        <td colspan="6" class="text-center">Pilih periode untuk melihat laporan</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Page -->
+                <div id="settings-page" class="page">
+                    <div class="card">
+                        <h3><i class="fas fa-user-lock"></i> Ganti Password</h3>
+                        <form id="change-password-form" style="max-width: 500px; margin-top: 1.5rem;">
+                            <div class="form-group">
+                                <label>Password Lama *</label>
+                                <input type="password" class="form-input" id="old-password" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Password Baru *</label>
+                                <input type="password" class="form-input" id="new-password" required minlength="6">
+                                <small style="color: #6b7280; font-size: 0.75rem;">Minimal 6 karakter</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Konfirmasi Password Baru *</label>
+                                <input type="password" class="form-input" id="confirm-password" required>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Simpan Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <h3><i class="fas fa-info-circle"></i> Informasi Aplikasi</h3>
+                        <div style="margin-top: 1rem;">
+                            <p><strong>Versi:</strong> 1.0.0</p>
+                            <p><strong>Developer:</strong> HIMATEKKOM</p>
+                            <p><strong>Storage:</strong> localStorage Browser</p>
+                            <p style="margin-top: 1rem; color: #6b7280; font-size: 0.875rem;">
+                                💡 Backup data secara berkala menggunakan fitur Export Excel di menu Laporan
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Forms -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-title">Form</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK v10 -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script>
+        // Your Firebase project configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC7Ga40Urbrc5tKRcBoZb0PL_hwRDU5aVg",
+            authDomain: "sistem-rekap.firebaseapp.com",
+            projectId: "sistem-rekap",
+            storageBucket: "sistem-rekap.firebasestorage.app",
+            messagingSenderId: "80952255987",
+            appId: "1:80952255987:web:cf2b1df2838f7cd2fe9e86",
+            measurementId: "G-96F883HJQF"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Initialize Analytics (optional)
+        if (typeof firebase.analytics === 'function') {
+            firebase.analytics();
+        }
+    </script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Main App -->
+    <script src="app.js"></script>
+</body>
+</html>
