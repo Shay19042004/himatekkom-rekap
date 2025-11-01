@@ -433,7 +433,955 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Main App -->
-    <script src="app.js"></script>
+    <!-- Main App (inlined to avoid external fetch issues) -->
+    <script>
+// ============================================
+// Firebase Service dengan Firestore (inlined)
+// ============================================
+
+class FirebaseService {
+    constructor() {
+        this.db = firebase.firestore();
+        this.auth = firebase.auth();
+        this.currentUserId = null;
+        
+        // Setup auth state listener
+        this.auth.onAuthStateChanged((user) => {
+            this.currentUserId = user ? user.uid : null;
+        });
+    }
+
+    // Authentication Methods
+    async signIn(email, password) {
+        console.log('🔑 FirebaseService: Attempting signIn...');
+        try {
+            const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+            this.currentUserId = userCredential.user.uid;
+            console.log('✅ SignIn successful, UID:', this.currentUserId);
+            return { success: true, user: userCredential.user };
+        } catch (error) {
+            console.error('❌ SignIn error:', error.code, error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async signUp(email, password) {
+        console.log('📝 FirebaseService: Creating new user...');
+        try {
+            const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
+            this.currentUserId = userCredential.user.uid;
+            console.log('✅ SignUp successful, UID:', this.currentUserId);
+            return { success: true, user: userCredential.user };
+        } catch (error) {
+            console.error('❌ SignUp error:', error.code, error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async signOut() {
+        try {
+            await this.auth.signOut();
+            this.currentUserId = null;
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async changePassword(newPassword) {
+        try {
+            const user = this.auth.currentUser;
+            if (user) {
+                await user.updatePassword(newPassword);
+                return { success: true };
+            }
+            return { success: false, error: 'No user logged in' };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    getCurrentUser() {
+        return this.auth.currentUser;
+    }
+
+    isAuthenticated() {
+        return this.currentUserId !== null;
+    }
+
+    // Firestore Methods - Products
+    async getProducts() {
+        if (!this.currentUserId) return [];
+        try {
+            const snapshot = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('products')
+                .get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error('Get products error:', error);
+            return [];
+        }
+    }
+
+    async addProduct(product) {
+        if (!this.currentUserId) return null;
+        try {
+            const docRef = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('products')
+                .add(product);
+            return docRef.id;
+        } catch (error) {
+            console.error('Add product error:', error);
+            return null;
+        }
+    }
+
+    async updateProduct(id, product) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('products')
+                .doc(id)
+                .update(product);
+            return true;
+        } catch (error) {
+            console.error('Update product error:', error);
+            return false;
+        }
+    }
+
+    async deleteProduct(id) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('products')
+                .doc(id)
+                .delete();
+            return true;
+        } catch (error) {
+            console.error('Delete product error:', error);
+            return false;
+        }
+    }
+
+    // Firestore Methods - Restocks
+    async getRestocks() {
+        if (!this.currentUserId) return [];
+        try {
+            const snapshot = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('restocks')
+                .get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error('Get restocks error:', error);
+            return [];
+        }
+    }
+
+    async addRestock(restock) {
+        if (!this.currentUserId) return null;
+        try {
+            const docRef = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('restocks')
+                .add(restock);
+            return docRef.id;
+        } catch (error) {
+            console.error('Add restock error:', error);
+            return null;
+        }
+    }
+
+    async updateRestock(id, restock) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('restocks')
+                .doc(id)
+                .update(restock);
+            return true;
+        } catch (error) {
+            console.error('Update restock error:', error);
+            return false;
+        }
+    }
+
+    async deleteRestock(id) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('restocks')
+                .doc(id)
+                .delete();
+            return true;
+        } catch (error) {
+            console.error('Delete restock error:', error);
+            return false;
+        }
+    }
+
+    // Firestore Methods - Sales
+    async getSales() {
+        if (!this.currentUserId) return [];
+        try {
+            const snapshot = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('sales')
+                .get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error('Get sales error:', error);
+            return [];
+        }
+    }
+
+    async addSale(sale) {
+        if (!this.currentUserId) return null;
+        try {
+            const docRef = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('sales')
+                .add(sale);
+            return docRef.id;
+        } catch (error) {
+            console.error('Add sale error:', error);
+            return null;
+        }
+    }
+
+    async updateSale(id, sale) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('sales')
+                .doc(id)
+                .update(sale);
+            return true;
+        } catch (error) {
+            console.error('Update sale error:', error);
+            return false;
+        }
+    }
+
+    async deleteSale(id) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('sales')
+                .doc(id)
+                .delete();
+            return true;
+        } catch (error) {
+            console.error('Delete sale error:', error);
+            return false;
+        }
+    }
+
+    // Real-time listeners
+    onProductsChange(callback) {
+        if (!this.currentUserId) return () => {};
+        return this.db
+            .collection('users')
+            .doc(this.currentUserId)
+            .collection('products')
+            .onSnapshot((snapshot) => {
+                const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(products);
+            });
+    }
+
+    onRestocksChange(callback) {
+        if (!this.currentUserId) return () => {};
+        return this.db
+            .collection('users')
+            .doc(this.currentUserId)
+            .collection('restocks')
+            .onSnapshot((snapshot) => {
+                const restocks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(restocks);
+            });
+    }
+
+    onSalesChange(callback) {
+        if (!this.currentUserId) return () => {};
+        return this.db
+            .collection('users')
+            .doc(this.currentUserId)
+            .collection('sales')
+            .onSnapshot((snapshot) => {
+                const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(sales);
+            });
+    }
+
+    // Clear all data
+    async clearAllData() {
+        if (!this.currentUserId) return false;
+        try {
+            const batch = this.db.batch();
+            
+            // Delete all products
+            const products = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('products')
+                .get();
+            products.docs.forEach(doc => batch.delete(doc.ref));
+            
+            // Delete all restocks
+            const restocks = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('restocks')
+                .get();
+            restocks.docs.forEach(doc => batch.delete(doc.ref));
+            
+            // Delete all sales
+            const sales = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('sales')
+                .get();
+            sales.docs.forEach(doc => batch.delete(doc.ref));
+            
+            await batch.commit();
+            return true;
+        } catch (error) {
+            console.error('Clear data error:', error);
+            return false;
+        }
+    }
+}
+
+// Initialize Firebase Service
+const firebaseService = new FirebaseService();
+
+// ============================================
+// Authentication Manager
+// ============================================
+
+class AuthManager {
+    constructor(firebaseService) {
+        this.firebase = firebaseService;
+    }
+
+    async login(email, password) {
+        console.log('🔐 AuthManager: Attempting login for', email);
+        
+        try {
+            const result = await this.firebase.signIn(email, password);
+            console.log('📧 SignIn result:', result);
+            
+            // Check if user doesn't exist - handle multiple error codes
+            if (!result.success && (
+                result.error.includes('user-not-found') || 
+                result.error.includes('invalid-credential') ||
+                result.error.includes('wrong-password')
+            )) {
+                // Auto-create user if not exists
+                console.log('👤 User not found or invalid credential, creating new account...');
+                const signupResult = await this.firebase.signUp(email, password);
+                console.log('📝 SignUp result:', signupResult);
+                
+                // If email already exists, it means wrong password
+                if (!signupResult.success && signupResult.error.includes('email-already-in-use')) {
+                    console.error('❌ Email already registered with different password');
+                    return false;
+                }
+                
+                return signupResult.success;
+            }
+            return result.success;
+        } catch (error) {
+            console.error('❌ AuthManager login error:', error);
+            throw error;
+        }
+    }
+
+    isLoggedIn() {
+        return this.firebase.isAuthenticated();
+    }
+
+    async logout() {
+        await this.firebase.signOut();
+    }
+
+    async changePassword(oldPassword, newPassword) {
+        // Firebase doesn't need old password for updatePassword
+        // But we keep the signature for compatibility
+        const result = await this.firebase.changePassword(newPassword);
+        return result.success;
+    }
+}
+
+// ============================================
+// Data Manager
+// ============================================
+
+class DataManager {
+    constructor(firebaseService) {
+        this.firebase = firebaseService;
+        this.products = [];
+        this.restocks = [];
+        this.sales = [];
+        this.listeners = [];
+    }
+
+    async init() {
+        // Load initial data
+        this.products = await this.firebase.getProducts();
+        this.restocks = await this.firebase.getRestocks();
+        this.sales = await this.firebase.getSales();
+        
+        // Setup real-time listeners
+        this.listeners.push(
+            this.firebase.onProductsChange((products) => {
+                this.products = products;
+                if (window.ui) {
+                    window.ui.renderProducts();
+                    window.ui.renderStock();
+                    window.ui.renderDashboard();
+                }
+            })
+        );
+        
+        this.listeners.push(
+            this.firebase.onRestocksChange((restocks) => {
+                this.restocks = restocks;
+                if (window.ui) {
+                    window.ui.renderRestocks();
+                    window.ui.renderStock();
+                    window.ui.renderDashboard();
+                }
+            })
+        );
+        
+        this.listeners.push(
+            this.firebase.onSalesChange((sales) => {
+                this.sales = sales;
+                if (window.ui) {
+                    window.ui.renderSales();
+                    window.ui.renderStock();
+                    window.ui.renderDashboard();
+                    window.ui.renderReports();
+                }
+            })
+        );
+    }
+
+    cleanup() {
+        this.listeners.forEach(unsubscribe => unsubscribe());
+        this.listeners = [];
+    }
+
+    // Products
+    async addProduct(product) {
+        const id = await this.firebase.addProduct(product);
+        return id;
+    }
+
+    async updateProduct(id, product) {
+        return await this.firebase.updateProduct(id, product);
+    }
+
+    async deleteProduct(id) {
+        return await this.firebase.deleteProduct(id);
+    }
+
+    getProduct(id) {
+        return this.products.find(p => p.id === id);
+    }
+
+    getAllProducts() {
+        return this.products;
+    }
+
+    // Restocks
+    async addRestock(restock) {
+        const id = await this.firebase.addRestock(restock);
+        return id;
+    }
+
+    async updateRestock(id, restock) {
+        return await this.firebase.updateRestock(id, restock);
+    }
+
+    async deleteRestock(id) {
+        return await this.firebase.deleteRestock(id);
+    }
+
+    getRestock(id) {
+        return this.restocks.find(r => r.id === id);
+    }
+
+    getAllRestocks() {
+        return this.restocks;
+    }
+
+    // Sales
+    async addSale(sale) {
+        const product = this.getProduct(sale.productId);
+        if (!product) return null;
+
+        const fifoResult = this.calculateCostFIFO(sale.productId, sale.quantity);
+        
+        const newSale = {
+            ...sale,
+            sellPrice: product.sellPrice,
+            revenue: sale.quantity * product.sellPrice,
+            cost: fifoResult.totalCost,
+            profit: (sale.quantity * product.sellPrice) - fifoResult.totalCost
+        };
+
+        const id = await this.firebase.addSale(newSale);
+        return id;
+    }
+
+    async updateSale(id, updatedSale) {
+        const product = this.getProduct(updatedSale.productId);
+        if (!product) return false;
+
+        const fifoResult = this.calculateCostFIFO(updatedSale.productId, updatedSale.quantity, id);
+        
+        const newSale = {
+            ...updatedSale,
+            sellPrice: product.sellPrice,
+            revenue: updatedSale.quantity * product.sellPrice,
+            cost: fifoResult.totalCost,
+            profit: (updatedSale.quantity * product.sellPrice) - fifoResult.totalCost
+        };
+
+        return await this.firebase.updateSale(id, newSale);
+    }
+
+    async deleteSale(id) {
+        return await this.firebase.deleteSale(id);
+    }
+
+    getSale(id) {
+        return this.sales.find(s => s.id === id);
+    }
+
+    getAllSales() {
+        return this.sales;
+    }
+
+    // FIFO Calculation
+    calculateCostFIFO(productId, quantity, excludeSaleId = null) {
+        const productRestocks = this.restocks
+            .filter(r => r.productId === productId)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const productSales = this.sales
+            .filter(s => s.productId === productId && s.id !== excludeSaleId)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const stockLevels = productRestocks.map(restock => ({
+            ...restock,
+            remaining: restock.quantity
+        }));
+
+        for (const sale of productSales) {
+            let remainingToDeduct = sale.quantity;
+            
+            for (const stock of stockLevels) {
+                if (remainingToDeduct <= 0) break;
+                
+                const deductAmount = Math.min(stock.remaining, remainingToDeduct);
+                stock.remaining -= deductAmount;
+                remainingToDeduct -= deductAmount;
+            }
+        }
+
+        let remainingToSell = quantity;
+        let totalCost = 0;
+
+        for (const stock of stockLevels) {
+            if (remainingToSell <= 0) break;
+            
+            const useAmount = Math.min(stock.remaining, remainingToSell);
+            totalCost += useAmount * stock.buyPrice;
+            remainingToSell -= useAmount;
+        }
+
+        return {
+            totalCost,
+            success: remainingToSell === 0
+        };
+    }
+
+    // Stock Calculation
+    getStockForProduct(productId) {
+        const totalRestock = this.restocks
+            .filter(r => r.productId === productId)
+            .reduce((sum, r) => sum + r.quantity, 0);
+
+        const totalSold = this.sales
+            .filter(s => s.productId === productId)
+            .reduce((sum, s) => sum + s.quantity, 0);
+
+        return {
+            totalRestock,
+            totalSold,
+            remaining: totalRestock - totalSold
+        };
+    }
+
+    // Dashboard Statistics
+    getDashboardStats() {
+        const totalRevenue = this.sales.reduce((sum, s) => sum + s.revenue, 0);
+        const totalProfit = this.sales.reduce((sum, s) => sum + s.profit, 0);
+        const totalSold = this.sales.reduce((sum, s) => sum + s.quantity, 0);
+        const profitPercentage = totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0;
+
+        return {
+            totalRevenue,
+            totalProfit,
+            totalSold,
+            profitPercentage
+        };
+    }
+
+    // Report by Date Range
+    getReportByDateRange(startDate, endDate) {
+        const filteredSales = this.sales.filter(s => {
+            const saleDate = new Date(s.date);
+            return saleDate >= new Date(startDate) && saleDate <= new Date(endDate);
+        });
+
+        const productMap = {};
+
+        filteredSales.forEach(sale => {
+            if (!productMap[sale.productId]) {
+                const product = this.getProduct(sale.productId);
+                productMap[sale.productId] = {
+                    productName: product ? product.name : 'Unknown',
+                    quantity: 0,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0
+                };
+            }
+
+            productMap[sale.productId].quantity += sale.quantity;
+            productMap[sale.productId].revenue += sale.revenue;
+            productMap[sale.productId].cost += sale.cost;
+            productMap[sale.productId].profit += sale.profit;
+        });
+
+        return Object.values(productMap);
+    }
+}
+
+class UIManager {
+    constructor(dataManager) {
+        this.dm = dataManager;
+        this.currentPage = 'dashboard';
+        this.initializeEventListeners();
+        this.updateCurrentDate();
+        this.renderDashboard();
+    }
+
+    initializeEventListeners() {
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = item.dataset.page;
+                this.navigateToPage(page);
+            });
+        });
+
+        // Modal
+        const modal = document.getElementById('modal');
+        const closeModal = document.querySelector('.close-modal');
+        
+        closeModal.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+
+        // Button listeners
+        document.getElementById('add-product-btn').addEventListener('click', () => this.showProductForm());
+        document.getElementById('add-restock-btn').addEventListener('click', () => this.showRestockForm());
+        document.getElementById('add-sale-btn').addEventListener('click', () => this.showSaleForm());
+        document.getElementById('filter-report-btn').addEventListener('click', () => this.filterReport());
+        document.getElementById('export-excel-btn').addEventListener('click', () => this.exportToExcel());
+        document.getElementById('reset-data-btn').addEventListener('click', () => this.resetAllData());
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            this.showConfirmModal(
+                'Konfirmasi Logout',
+                'Yakin ingin keluar dari aplikasi?',
+                () => {
+                    auth.logout();
+                    location.reload();
+                },
+                null,
+                true // isLogout = true
+            );
+        });
+    }
+
+    navigateToPage(page) {
+        // Update navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        document.querySelector(`[data-page="${page}"]`).classList.add('active');
+
+        // Update pages
+        document.querySelectorAll('.page').forEach(p => {
+            p.classList.remove('active');
+        });
+        document.getElementById(`${page}-page`).classList.add('active');
+
+        // Update title
+        const titles = {
+            'dashboard': 'Dashboard',
+            'products': 'Master Produk',
+            'restock': 'Restok Barang',
+            'sales': 'Penjualan',
+            'stock': 'Stok Barang',
+            'reports': 'Laporan',
+            'settings': 'Pengaturan'
+        };
+        document.getElementById('page-title').textContent = titles[page];
+
+        // Render content
+        this.currentPage = page;
+        this.renderCurrentPage();
+    }
+
+    renderCurrentPage() {
+        switch(this.currentPage) {
+            case 'dashboard':
+                this.renderDashboard();
+                break;
+            case 'products':
+                this.renderProducts();
+                break;
+            case 'restock':
+                this.renderRestocks();
+                break;
+            case 'sales':
+                this.renderSales();
+                break;
+            case 'stock':
+                this.renderStock();
+                break;
+            case 'reports':
+                this.renderReports();
+                break;
+            case 'settings':
+                this.renderSettings();
+                break;
+        }
+    }
+
+    updateCurrentDate() {
+        const dateDisplay = document.getElementById('current-date');
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const today = new Date().toLocaleDateString('id-ID', options);
+        dateDisplay.textContent = today;
+    }
+
+    formatCurrency(amount) {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0
+        }).format(amount);
+    }
+
+    // Dashboard Rendering
+    renderDashboard() {
+        const stats = this.dm.getDashboardStats();
+        
+        document.getElementById('total-revenue').textContent = this.formatCurrency(stats.totalRevenue);
+        document.getElementById('total-profit').textContent = this.formatCurrency(stats.totalProfit);
+        document.getElementById('profit-percentage').textContent = stats.profitPercentage.toFixed(2) + '%';
+        document.getElementById('total-sold').textContent = stats.totalSold + ' item';
+
+        this.renderSalesChart();
+    }
+
+    renderSalesChart() {
+        const ctx = document.getElementById('salesChart');
+        
+        // Get sales data grouped by product
+        const salesByProduct = {};
+        this.dm.getAllSales().forEach(sale => {
+            const product = this.dm.getProduct(sale.productId);
+            if (!salesByProduct[product.name]) {
+                salesByProduct[product.name] = 0;
+            }
+            salesByProduct[product.name] += sale.revenue;
+        });
+
+        const labels = Object.keys(salesByProduct);
+        const data = Object.values(salesByProduct);
+
+        // Destroy previous chart if exists
+        if (window.salesChart && typeof window.salesChart.destroy === 'function') {
+            window.salesChart.destroy();
+        }
+
+        window.salesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.length > 0 ? labels : ['Belum ada data'],
+                datasets: [{
+                    label: 'Pendapatan (Rp)',
+                    data: data.length > 0 ? data : [0],
+                    backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    // ... (rest of UIManager methods unchanged) ...
+
+}
+
+// Initialize Application with Firebase
+
+const auth = new AuthManager(firebaseService);
+const dm = new DataManager(firebaseService);
+let ui = null;
+
+// Show loading
+function showLoading(show = true) {
+    const loginPage = document.getElementById('login-page');
+    if (show) {
+        loginPage.style.opacity = '0.6';
+        loginPage.style.pointerEvents = 'none';
+    } else {
+        loginPage.style.opacity = '1';
+        loginPage.style.pointerEvents = 'auto';
+    }
+}
+
+// Initialize app after login
+async function initializeApp() {
+    // Initialize DataManager and load data
+    await dm.init();
+    
+    // Initialize UI
+    ui = new UIManager(dm);
+}
+
+// Login Handler
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    
+    console.log('🔐 Login attempt for:', email);
+    showLoading(true);
+    
+    try {
+        const success = await auth.login(email, password);
+        console.log('✅ Login result:', success);
+        
+        if (success) {
+            console.log('✅ Login successful, waiting for onAuthStateChanged...');
+            // Don't navigate here - let onAuthStateChanged handle it
+        } else {
+            showLoading(false);
+            console.error('❌ Login failed');
+            alert('❌ Login gagal! Periksa email dan password Anda.');
+        }
+    } catch (error) {
+        showLoading(false);
+        console.error('❌ Login error:', error);
+        alert('❌ Error: ' + (error.message || error));
+    }
+});
+
+// Set timeout untuk loading screen - jika > 5 detik, force show login
+const loadingTimeout = setTimeout(() => {
+    const loadingEl = document.getElementById('initial-loading');
+    if (loadingEl && loadingEl.style.display !== 'none') {
+        console.warn('⚠️ Loading timeout (5s) - forcing login page display');
+        loadingEl.style.display = 'none';
+        document.getElementById('login-page').style.display = 'flex';
+        document.getElementById('main-app').style.display = 'none';
+    }
+}, 5000);
+
+console.log('⏳ Waiting for Firebase auth state...');
+
+firebase.auth().onAuthStateChanged(async (user) => {
+    console.log('🔄 Auth state changed:', user ? user.email : 'No user');
+    clearTimeout(loadingTimeout);
+    
+    if (user && !ui) {
+        try {
+            document.getElementById('initial-loading').style.display = 'none';
+            document.getElementById('login-page').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            
+            await initializeApp();
+            showLoading(false);
+            console.log('✅ App initialized successfully');
+        } catch (error) {
+            console.error('❌ Error initializing app:', error);
+            alert('❌ Error loading app: ' + error.message);
+            showLoading(false);
+        }
+    } else if (!user) {
+        document.getElementById('initial-loading').style.display = 'none';
+        document.getElementById('login-page').style.display = 'flex';
+        document.getElementById('main-app').style.display = 'none';
+        showLoading(false);
+    }
+});
+
+</script>
 </body>
 </html>
