@@ -929,25 +929,37 @@ class UIManager {
 
         this.showModal(title, formHTML);
 
-        document.getElementById('product-form').addEventListener('submit', (e) => {
+        document.getElementById('product-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const productData = {
-                name: document.getElementById('product-name').value,
-                sellPrice: parseFloat(document.getElementById('product-sell-price').value)
-            };
+            const form = document.getElementById('product-form');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
 
-            if (product) {
-                this.dm.updateProduct(productId, productData);
-                this.showSuccessAlert('Produk berhasil diperbarui!');
-            } else {
-                this.dm.addProduct(productData);
-                this.showSuccessAlert('Produk berhasil ditambahkan!');
+            try {
+                const productData = {
+                    name: document.getElementById('product-name').value,
+                    sellPrice: parseFloat(document.getElementById('product-sell-price').value)
+                };
+
+                if (product) {
+                    await this.dm.updateProduct(productId, productData);
+                    this.showSuccessAlert('Produk berhasil diperbarui!');
+                } else {
+                    await this.dm.addProduct(productData);
+                    this.showSuccessAlert('Produk berhasil ditambahkan!');
+                }
+
+                document.getElementById('modal').classList.remove('active');
+                this.renderProducts();
+                this.renderDashboard();
+            } catch (err) {
+                alert('Gagal menyimpan produk. ' + (err && err.message ? err.message : 'Coba lagi.'));
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
             }
-
-            document.getElementById('modal').classList.remove('active');
-            this.renderProducts();
-            this.renderDashboard();
         });
     }
 
@@ -1110,33 +1122,45 @@ class UIManager {
         quantityInput.addEventListener('input', calculateUnitPrice);
         totalPriceInput.addEventListener('input', calculateUnitPrice);
 
-        document.getElementById('restock-form').addEventListener('submit', (e) => {
+        document.getElementById('restock-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const quantity = parseInt(document.getElementById('restock-quantity').value);
-            const totalPrice = parseFloat(document.getElementById('restock-total-price').value);
-            const unitPrice = totalPrice / quantity;
+            const form = document.getElementById('restock-form');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
 
-            const restockData = {
-                date: document.getElementById('restock-date').value,
-                productId: document.getElementById('restock-product').value,
-                quantity: quantity,
-                buyPrice: unitPrice,
-                totalCapital: totalPrice  // Tambahkan total capital
-            };
+            try {
+                const quantity = parseInt(document.getElementById('restock-quantity').value);
+                const totalPrice = parseFloat(document.getElementById('restock-total-price').value);
+                const unitPrice = totalPrice / quantity;
 
-            if (restock) {
-                this.dm.updateRestock(restockId, restockData);
-                this.showSuccessAlert('Restok berhasil diperbarui!');
-            } else {
-                this.dm.addRestock(restockData);
-                this.showSuccessAlert('Restok berhasil ditambahkan!');
+                const restockData = {
+                    date: document.getElementById('restock-date').value,
+                    productId: document.getElementById('restock-product').value,
+                    quantity: quantity,
+                    buyPrice: unitPrice,
+                    totalCapital: totalPrice  // Tambahkan total capital
+                };
+
+                if (restock) {
+                    await this.dm.updateRestock(restockId, restockData);
+                    this.showSuccessAlert('Restok berhasil diperbarui!');
+                } else {
+                    await this.dm.addRestock(restockData);
+                    this.showSuccessAlert('Restok berhasil ditambahkan!');
+                }
+
+                document.getElementById('modal').classList.remove('active');
+                this.renderRestocks();
+                this.renderStock();
+                this.renderDashboard();
+            } catch (err) {
+                alert('Gagal menyimpan restok. ' + (err && err.message ? err.message : 'Coba lagi.'));
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
             }
-
-            document.getElementById('modal').classList.remove('active');
-            this.renderRestocks();
-            this.renderStock();
-            this.renderDashboard();
         });
     }
 
@@ -1315,32 +1339,37 @@ class UIManager {
         // Initialize
         updateStockDisplay();
 
-        document.getElementById('sale-form').addEventListener('submit', (e) => {
+        document.getElementById('sale-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+            const form = document.getElementById('sale-form');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+
             const productId = document.getElementById('sale-product').value;
             const remaining = parseInt(document.getElementById('sale-remaining').value);
             
             if (isNaN(remaining)) {
                 alert('Masukkan jumlah sisa di showcase yang valid.');
-                return;
+                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
             const sold = currentStock - remaining;
 
             if (sold <= 0) {
                 alert('Jumlah terjual harus lebih dari 0. Pastikan sisa di showcase lebih kecil dari stok tersedia.');
-                return;
+                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
             if (remaining < 0) {
                 alert('Sisa di showcase tidak boleh negatif.');
-                return;
+                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
             if (remaining > currentStock) {
                 alert('Sisa di showcase tidak boleh lebih besar dari stok tersedia.');
-                return;
+                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
             const saleData = {
@@ -1351,10 +1380,10 @@ class UIManager {
 
             try {
                 if (sale) {
-                    this.dm.updateSale(saleId, saleData);
+                    await this.dm.updateSale(saleId, saleData);
                     this.showSuccessAlert('Penjualan berhasil diperbarui!');
                 } else {
-                    this.dm.addSale(saleData);
+                    await this.dm.addSale(saleData);
                     this.showSuccessAlert('Penjualan berhasil ditambahkan!');
                 }
 
@@ -1364,6 +1393,9 @@ class UIManager {
                 this.renderDashboard();
             } catch (error) {
                 alert(error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
             }
         });
     }
