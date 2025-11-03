@@ -1260,6 +1260,9 @@ class UIManager {
 
         this.showModal(title, formHTML);
 
+        // Make product select searchable
+        this.makeSelectSearchable('restock-product');
+
         // Auto calculate unit price and Kelas allocation
         const quantityInput = document.getElementById('restock-quantity');
         const totalPriceInput = document.getElementById('restock-total-price');
@@ -1495,6 +1498,9 @@ class UIManager {
         `;
 
         this.showModal(title, formHTML);
+
+        // Make product select searchable
+        this.makeSelectSearchable('sale-product');
 
         // Auto calculate sold quantity
     const productSelect = document.getElementById('sale-product');
@@ -1745,6 +1751,9 @@ class UIManager {
         `;
 
         this.showModal(title, formHTML);
+
+        // Make product select searchable
+        this.makeSelectSearchable('transfer-product');
 
         // Stock validation and display
         const productSelect = document.getElementById('transfer-product');
@@ -2005,6 +2014,52 @@ class UIManager {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+
+    makeSelectSearchable(selectId) {
+        const selectElement = document.getElementById(selectId);
+        if (!selectElement) return;
+
+        const allOptions = Array.from(selectElement.options);
+        let searchBuffer = '';
+        let searchTimeout;
+
+        // Enhanced keyboard search - keeps normal dropdown appearance
+        selectElement.addEventListener('keydown', (e) => {
+            // Skip navigation keys
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Tab'].includes(e.key)) {
+                return;
+            }
+
+            // Only handle single character keys
+            if (e.key.length !== 1) return;
+
+            e.preventDefault();
+            
+            // Add character to search buffer
+            searchBuffer += e.key.toLowerCase();
+            
+            // Clear timeout
+            clearTimeout(searchTimeout);
+            
+            // Find matching option (starts with)
+            const matchingOption = allOptions.find(option => {
+                if (!option.value) return false;
+                return option.textContent.toLowerCase().startsWith(searchBuffer);
+            });
+            
+            if (matchingOption) {
+                selectElement.value = matchingOption.value;
+                matchingOption.selected = true;
+                // Trigger change event for listeners
+                selectElement.dispatchEvent(new Event('change'));
+            }
+            
+            // Clear search buffer after 1 second
+            searchTimeout = setTimeout(() => {
+                searchBuffer = '';
+            }, 1000);
+        });
     }
 
     showModal(title, content) {
