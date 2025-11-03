@@ -69,7 +69,7 @@ class FirebaseService {
     }
 
     isAuthenticated() {
-        return this.currentUserId !== null;
+        return this.currentUser !== null;
     }
 
     // Firestore Methods - Products
@@ -261,6 +261,69 @@ class FirebaseService {
         }
     }
 
+    // Firestore Methods - Transfers
+    async getTransfers() {
+        if (!this.currentUserId) return [];
+        try {
+            const snapshot = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('transfers')
+                .get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error('Get transfers error:', error);
+            return [];
+        }
+    }
+
+    async addTransfer(transfer) {
+        if (!this.currentUserId) return null;
+        try {
+            const docRef = await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('transfers')
+                .add(transfer);
+            return docRef.id;
+        } catch (error) {
+            console.error('Add transfer error:', error);
+            return null;
+        }
+    }
+
+    async updateTransfer(id, transfer) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('transfers')
+                .doc(id)
+                .update(transfer);
+            return true;
+        } catch (error) {
+            console.error('Update transfer error:', error);
+            return false;
+        }
+    }
+
+    async deleteTransfer(id) {
+        if (!this.currentUserId) return false;
+        try {
+            await this.db
+                .collection('users')
+                .doc(this.currentUserId)
+                .collection('transfers')
+                .doc(id)
+                .delete();
+            return true;
+        } catch (error) {
+            console.error('Delete transfer error:', error);
+            return false;
+        }
+    }
+
     // Real-time listeners
     onProductsChange(callback) {
         if (!this.currentUserId) return () => {};
@@ -295,6 +358,18 @@ class FirebaseService {
             .onSnapshot((snapshot) => {
                 const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 callback(sales);
+            });
+    }
+
+    onTransfersChange(callback) {
+        if (!this.currentUserId) return () => {};
+        return this.db
+            .collection('users')
+            .doc(this.currentUserId)
+            .collection('transfers')
+            .onSnapshot((snapshot) => {
+                const transfers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(transfers);
             });
     }
 
@@ -408,6 +483,7 @@ class DataManager {
         this.products = [];
         this.restocks = [];
         this.sales = [];
+        this.transfers = [];
         this.listeners = [];
     }
 
@@ -416,6 +492,7 @@ class DataManager {
         this.products = await this.firebase.getProducts();
         this.restocks = await this.firebase.getRestocks();
         this.sales = await this.firebase.getSales();
+        this.transfers = await this.firebase.getTransfers();
         
         // Setup real-time listeners
         this.listeners.push(
@@ -448,6 +525,16 @@ class DataManager {
                     window.ui.renderStock();
                     window.ui.renderDashboard();
                     window.ui.renderReports();
+                }
+            })
+        );
+        
+        this.listeners.push(
+            this.firebase.onTransfersChange((transfers) => {
+                this.transfers = transfers;
+                if (window.ui) {
+                    window.ui.renderStock();
+                    window.ui.renderDashboard();
                 }
             })
         );
@@ -550,6 +637,28 @@ class DataManager {
         return this.sales;
     }
 
+    // Transfers
+    async addTransfer(transfer) {
+        const id = await this.firebase.addTransfer(transfer);
+        return id;
+    }
+
+    async updateTransfer(id, transfer) {
+        return await this.firebase.updateTransfer(id, transfer);
+    }
+
+    async deleteTransfer(id) {
+        return await this.firebase.deleteTransfer(id);
+    }
+
+    getTransfer(id) {
+        return this.transfers.find(t => t.id === id);
+    }
+
+    getAllTransfers() {
+        return this.transfers;
+    }
+
     // FIFO Calculation
     calculateCostFIFO(productId, quantity, excludeSaleId = null) {
         const productRestocks = this.restocks
@@ -608,6 +717,42 @@ class DataManager {
             totalRestock,
             totalSold,
             remaining: totalRestock - totalSold
+        };
+    }
+
+    // Stock by location (Sekretariat/Kelas) based on allocations and sales by location
+    getStockForProductByLocation(productId) {
+        const alloc = this.restocks
+            .filter(r => r.productId === productId)
+            .reduce((acc, r) => {
+                const aS = r.allocSekret || 0;
+                const aK = r.allocKelas || 0;
+                acc.sekret += aS;
+                acc.kelas += aK;
+                return acc;
+            }, { sekret: 0, kelas: 0 });
+
+        const sold = this.sales
+            .filter(s => s.productId === productId)
+            .reduce((acc, s) => {
+                if (s.location === 'sekret') acc.sekret += s.quantity;
+                else if (s.location === 'kelas') acc.kelas += s.quantity;
+                return acc;
+            }, { sekret: 0, kelas: 0 });
+
+        const transfer = this.transfers
+            .filter(t => t.productId === productId)
+            .reduce((acc, t) => {
+                if (t.fromLocation === 'sekret') acc.sekretOut += t.quantity;
+                if (t.toLocation === 'sekret') acc.sekretIn += t.quantity;
+                if (t.fromLocation === 'kelas') acc.kelasOut += t.quantity;
+                if (t.toLocation === 'kelas') acc.kelasIn += t.quantity;
+                return acc;
+            }, { sekretOut: 0, sekretIn: 0, kelasOut: 0, kelasIn: 0 });
+
+        return {
+            sekret: alloc.sekret - sold.sekret - transfer.sekretOut + transfer.sekretIn,
+            kelas: alloc.kelas - sold.kelas - transfer.kelasOut + transfer.kelasIn
         };
     }
 
@@ -708,6 +853,7 @@ class UIManager {
         document.getElementById('add-product-btn').addEventListener('click', () => this.showProductForm());
         document.getElementById('add-restock-btn').addEventListener('click', () => this.showRestockForm());
         document.getElementById('add-sale-btn').addEventListener('click', () => this.showSaleForm());
+        document.getElementById('add-transfer-btn').addEventListener('click', () => this.showTransferForm());
         document.getElementById('filter-report-btn').addEventListener('click', () => this.filterReport());
         document.getElementById('export-excel-btn').addEventListener('click', () => this.exportToExcel());
         document.getElementById('reset-data-btn').addEventListener('click', () => this.resetAllData());
@@ -863,7 +1009,7 @@ class UIManager {
     // Products Rendering
     renderProducts() {
         const tbody = document.getElementById('products-tbody');
-        const products = this.dm.getAllProducts();
+    const products = this.dm.getAllProducts();
 
         if (products.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">Belum ada produk</td></tr>';
@@ -942,18 +1088,19 @@ class UIManager {
                     name: document.getElementById('product-name').value,
                     sellPrice: parseFloat(document.getElementById('product-sell-price').value)
                 };
+                const successMsg = product ? 'Produk berhasil diperbarui!' : 'Produk berhasil ditambahkan!';
 
                 if (product) {
                     await this.dm.updateProduct(productId, productData);
-                    this.showSuccessAlert('Produk berhasil diperbarui!');
                 } else {
                     await this.dm.addProduct(productData);
-                    this.showSuccessAlert('Produk berhasil ditambahkan!');
                 }
 
+                // Close form modal first so success modal isn't closed immediately
                 document.getElementById('modal').classList.remove('active');
                 this.renderProducts();
                 this.renderDashboard();
+                this.showSuccessAlert(successMsg);
             } catch (err) {
                 alert('Gagal menyimpan produk. ' + (err && err.message ? err.message : 'Coba lagi.'));
             } finally {
@@ -1086,6 +1233,17 @@ class UIManager {
                     <input type="number" class="form-input" id="restock-total-price" value="${totalPrice || ''}" required>
                     <small style="color: #6b7280; font-size: 0.75rem;">Contoh: Rp 40.000 untuk 1 dus</small>
                 </div>
+                <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Diletakkan di Sekretariat *</label>
+                        <input type="number" class="form-input" id="restock-alloc-sekret" value="${restock && restock.allocSekret != null ? restock.allocSekret : ''}" required min="0">
+                    </div>
+                    <div>
+                        <label>Diletakkan di Kelas (Otomatis)</label>
+                        <input type="number" class="form-input" id="restock-alloc-kelas" value="${restock && restock.allocKelas != null ? restock.allocKelas : ''}" readonly style="background: #f3f4f6;">
+                    </div>
+                    <small style="grid-column: 1 / -1; color: #6b7280; font-size: 0.75rem;">Kelas = Jumlah Item − Sekretariat</small>
+                </div>
                 <div class="form-group" style="background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
                     <label style="margin-bottom: 0.5rem;">Harga Satuan (Otomatis)</label>
                     <div style="font-size: 1.25rem; font-weight: 700; color: #1f2937;" id="calculated-unit-price">
@@ -1102,9 +1260,11 @@ class UIManager {
 
         this.showModal(title, formHTML);
 
-        // Auto calculate unit price
+        // Auto calculate unit price and Kelas allocation
         const quantityInput = document.getElementById('restock-quantity');
         const totalPriceInput = document.getElementById('restock-total-price');
+        const allocSekretInput = document.getElementById('restock-alloc-sekret');
+        const allocKelasInput = document.getElementById('restock-alloc-kelas');
         const unitPriceDisplay = document.getElementById('calculated-unit-price');
 
         const calculateUnitPrice = () => {
@@ -1119,8 +1279,19 @@ class UIManager {
             }
         };
 
-        quantityInput.addEventListener('input', calculateUnitPrice);
+        const calculateAllocKelas = () => {
+            const quantity = parseInt(quantityInput.value) || 0;
+            const allocSekret = parseInt(allocSekretInput.value) || 0;
+            const allocKelas = Math.max(0, quantity - allocSekret);
+            allocKelasInput.value = allocKelas;
+        };
+
+        quantityInput.addEventListener('input', () => {
+            calculateUnitPrice();
+            calculateAllocKelas();
+        });
         totalPriceInput.addEventListener('input', calculateUnitPrice);
+        allocSekretInput.addEventListener('input', calculateAllocKelas);
 
         document.getElementById('restock-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1134,27 +1305,41 @@ class UIManager {
                 const quantity = parseInt(document.getElementById('restock-quantity').value);
                 const totalPrice = parseFloat(document.getElementById('restock-total-price').value);
                 const unitPrice = totalPrice / quantity;
+                const allocSekret = parseInt(document.getElementById('restock-alloc-sekret').value);
+                const allocKelas = parseInt(document.getElementById('restock-alloc-kelas').value);
+
+                if (isNaN(allocSekret) || isNaN(allocKelas) || allocSekret < 0 || allocKelas < 0) {
+                    alert('Alokasi lokasi tidak valid.');
+                    submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
+                }
+                if (allocSekret + allocKelas !== quantity) {
+                    alert('Alokasi Sekretariat + Kelas harus sama dengan Jumlah Item.');
+                    submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
+                }
 
                 const restockData = {
                     date: document.getElementById('restock-date').value,
                     productId: document.getElementById('restock-product').value,
                     quantity: quantity,
                     buyPrice: unitPrice,
-                    totalCapital: totalPrice  // Tambahkan total capital
+                    totalCapital: totalPrice,  // Tambahkan total capital
+                    allocSekret: allocSekret,
+                    allocKelas: allocKelas
                 };
 
+                const successMsg = restock ? 'Restok berhasil diperbarui!' : 'Restok berhasil ditambahkan!';
                 if (restock) {
                     await this.dm.updateRestock(restockId, restockData);
-                    this.showSuccessAlert('Restok berhasil diperbarui!');
                 } else {
                     await this.dm.addRestock(restockData);
-                    this.showSuccessAlert('Restok berhasil ditambahkan!');
                 }
 
+                // Close form modal first then show success
                 document.getElementById('modal').classList.remove('active');
                 this.renderRestocks();
                 this.renderStock();
                 this.renderDashboard();
+                this.showSuccessAlert(successMsg);
             } catch (err) {
                 alert('Gagal menyimpan restok. ' + (err && err.message ? err.message : 'Coba lagi.'));
             } finally {
@@ -1266,24 +1451,41 @@ class UIManager {
                         }).join('')}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>Lokasi *</label>
+                    <select class="form-select" id="sale-location" required>
+                        <option value="">Pilih Lokasi</option>
+                        <option value="sekret" ${sale && sale.location === 'sekret' ? 'selected' : ''}>Sekretariat</option>
+                        <option value="kelas" ${sale && sale.location === 'kelas' ? 'selected' : ''}>Kelas</option>
+                    </select>
+                </div>
                 <div class="form-group" id="stock-display-group" style="background: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #0284c7;">
-                    <label style="color: #0c4a6e; font-weight: 600;">Stok Tersedia Sekarang</label>
+                    <label style="color: #0c4a6e; font-weight: 600;">Stok Awal di Lokasi (Otomatis)</label>
                     <div style="font-size: 1.5rem; font-weight: 700; color: #0c4a6e;" id="current-stock-display">
                         0 pcs
                     </div>
-                    <small style="color: #0369a1;">Total stok yang ada sebelum penjualan ini</small>
+                    <small style="color: #0369a1;">Stok tersedia di lokasi yang dipilih</small>
+                    <input type="hidden" id="sale-initial-lokasi" value="${sale && sale.initialLokasi != null ? sale.initialLokasi : '0'}">
+                </div>
+                <div class="form-group" id="last-remaining-info" style="display:none; background: #fef3c7; padding: 0.75rem; border-radius: 0.5rem; border-left: 4px solid #d97706;">
+                    <div style="font-size: 0.95rem; color: #78350f; margin-bottom: 0.5rem;">
+                        <strong>Sisa terakhir rekap</strong>: <span id="last-remaining-text">-</span>
+                    </div>
+                    <button type="button" class="btn btn-sm" id="fill-from-last-btn" style="background:#d97706;color:white;">
+                        Gunakan sisa terakhir
+                    </button>
                 </div>
                 <div class="form-group">
-                    <label>Sisa di Showcase *</label>
-                    <input type="number" class="form-input" id="sale-remaining" value="" required min="0">
-                    <small style="color: #6b7280; font-size: 0.75rem;">Berapa yang masih tersisa di display/showcase?</small>
+                    <label>Sisa di Lokasi *</label>
+                    <input type="number" class="form-input" id="sale-remaining-lokasi" value="${sale && sale.remainingLokasi != null ? sale.remainingLokasi : ''}" required min="0">
+                    <small style="color: #6b7280; font-size: 0.75rem;">Terjual = Stok Awal − Sisa</small>
                 </div>
                 <div class="form-group" style="background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
                     <label style="margin-bottom: 0.5rem;">Jumlah Terjual (Otomatis)</label>
                     <div style="font-size: 1.5rem; font-weight: 700; color: #059669;" id="calculated-sold">
                         0 pcs
                     </div>
-                    <small style="color: #6b7280; font-size: 0.75rem;">Stok tersedia - Sisa di showcase</small>
+                    <small style="color: #6b7280; font-size: 0.75rem;">Stok Awal − Sisa</small>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="document.getElementById('modal').classList.remove('active')">Batal</button>
@@ -1295,46 +1497,90 @@ class UIManager {
         this.showModal(title, formHTML);
 
         // Auto calculate sold quantity
-        const productSelect = document.getElementById('sale-product');
-        const remainingInput = document.getElementById('sale-remaining');
+    const productSelect = document.getElementById('sale-product');
+    const locationSelect = document.getElementById('sale-location');
+    const initialLokasiInput = document.getElementById('sale-initial-lokasi');
+    const remainingLokasiInput = document.getElementById('sale-remaining-lokasi');
         const soldDisplay = document.getElementById('calculated-sold');
         const stockDisplay = document.getElementById('current-stock-display');
 
         let currentStock = 0;
-
-        const updateStockDisplay = () => {
-            const selectedOption = productSelect.options[productSelect.selectedIndex];
-            if (selectedOption.value) {
-                currentStock = parseInt(selectedOption.dataset.stock) || 0;
-                stockDisplay.textContent = currentStock + ' pcs';
-                
-                // If editing, pre-fill remaining based on current sale
-                if (sale && sale.productId === selectedOption.value) {
-                    const remainingValue = currentStock - sale.quantity;
-                    remainingInput.value = remainingValue;
-                }
-            } else {
-                currentStock = 0;
-                stockDisplay.textContent = '0 pcs';
-            }
-            calculateSold();
+        const getLastSaleForProductLoc = (pid, loc) => {
+            const sales = this.dm.getAllSales()
+                .filter(s => s.productId === pid && s.location === loc)
+                .sort((a,b) => new Date(b.date) - new Date(a.date));
+            return sales.length ? sales[0] : null;
         };
 
+        // Define calculateSold FIRST (needed by updateStockDisplay)
         const calculateSold = () => {
-            const remaining = parseInt(remainingInput.value);
-            if (isNaN(remaining) || remaining === '') {
+            const init = parseInt(initialLokasiInput.value);
+            const rem = parseInt(remainingLokasiInput.value);
+
+            if (isNaN(init) && isNaN(rem)) {
                 soldDisplay.textContent = '0 pcs';
                 soldDisplay.style.color = '#6b7280';
                 return;
             }
-            
-            const sold = Math.max(0, currentStock - remaining);
+
+            const sInit = isNaN(init) ? 0 : init;
+            const sRem = isNaN(rem) ? 0 : rem;
+            const sold = Math.max(0, sInit - sRem);
             soldDisplay.textContent = sold + ' pcs';
             soldDisplay.style.color = sold > 0 ? '#059669' : '#6b7280';
         };
 
+        const updateStockDisplay = () => {
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            if (selectedOption.value && locationSelect.value) {
+                currentStock = parseInt(selectedOption.dataset.stock) || 0;
+                // Show per-location stock and auto-fill initial
+                const locStock = this.dm.getStockForProductByLocation(selectedOption.value);
+                const loc = locationSelect.value;
+                const currentLocRemaining = loc === 'sekret' ? locStock.sekret : locStock.kelas;
+                stockDisplay.textContent = (currentLocRemaining != null ? currentLocRemaining : 0) + ' pcs';
+                
+                // Auto-fill initial lokasi with current stock (unless editing existing sale)
+                if (!sale) {
+                    initialLokasiInput.value = currentLocRemaining != null ? currentLocRemaining : 0;
+                    calculateSold(); // Trigger calculation after auto-fill
+                }
+                
+                // Update last remaining info for quick prefill
+                const last = getLastSaleForProductLoc(selectedOption.value, locationSelect.value);
+                const infoBox = document.getElementById('last-remaining-info');
+                const infoText = document.getElementById('last-remaining-text');
+                const fillBtn = document.getElementById('fill-from-last-btn');
+
+                if (last && (last.remainingLokasi != null)) {
+                    const dateStr = new Date(last.date).toLocaleDateString('id-ID');
+                    infoText.textContent = `${last.remainingLokasi} pcs (${dateStr})`;
+                    infoBox.style.display = '';
+                    // Set handler to prefill initial = last remaining
+                    fillBtn.onclick = () => {
+                        initialLokasiInput.value = last.remainingLokasi;
+                        calculateSold();
+                    };
+                } else {
+                    infoBox.style.display = 'none';
+                    infoText.textContent = '-';
+                    if (fillBtn) fillBtn.onclick = null;
+                }
+                
+                calculateSold();
+            } else {
+                currentStock = 0;
+                stockDisplay.textContent = '0 pcs';
+                if (!sale) initialLokasiInput.value = '';
+                const infoBox = document.getElementById('last-remaining-info');
+                if (infoBox) infoBox.style.display = 'none';
+            }
+        };
+
         productSelect.addEventListener('change', updateStockDisplay);
-        remainingInput.addEventListener('input', calculateSold);
+        locationSelect.addEventListener('change', updateStockDisplay);
+        initialLokasiInput.addEventListener('input', calculateSold);
+        remainingLokasiInput.addEventListener('input', calculateSold);
 
         // Initialize
         updateStockDisplay();
@@ -1348,49 +1594,55 @@ class UIManager {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
 
             const productId = document.getElementById('sale-product').value;
-            const remaining = parseInt(document.getElementById('sale-remaining').value);
-            
-            if (isNaN(remaining)) {
-                alert('Masukkan jumlah sisa di showcase yang valid.');
+            const location = document.getElementById('sale-location').value;
+            const initLok = parseInt(document.getElementById('sale-initial-lokasi').value);
+            const remLok = parseInt(document.getElementById('sale-remaining-lokasi').value);
+
+            const safeInit = isNaN(initLok) ? 0 : initLok;
+            const safeRem = isNaN(remLok) ? 0 : remLok;
+
+            if (!location) {
+                alert('Pilih lokasi penjualan.');
                 submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
-            const sold = currentStock - remaining;
+            if (safeInit < 0 || safeRem < 0) {
+                alert('Nilai tidak boleh negatif.');
+                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
+            }
+
+            const sold = safeInit - safeRem;
 
             if (sold <= 0) {
-                alert('Jumlah terjual harus lebih dari 0. Pastikan sisa di showcase lebih kecil dari stok tersedia.');
+                alert('Jumlah terjual harus lebih dari 0. Pastikan stok awal lebih besar dari sisa.');
                 submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
             }
 
-            if (remaining < 0) {
-                alert('Sisa di showcase tidak boleh negatif.');
-                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
-            }
-
-            if (remaining > currentStock) {
-                alert('Sisa di showcase tidak boleh lebih besar dari stok tersedia.');
-                submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHTML; return;
-            }
+            // Optional: we could compare with per-location remaining, but allow flexibility across rekap periode
 
             const saleData = {
                 date: document.getElementById('sale-date').value,
                 productId: productId,
-                quantity: sold
+                location: location,
+                quantity: sold,
+                initialLokasi: safeInit,
+                remainingLokasi: safeRem
             };
 
             try {
+                const successMsg = sale ? 'Penjualan berhasil diperbarui!' : 'Penjualan berhasil ditambahkan!';
                 if (sale) {
                     await this.dm.updateSale(saleId, saleData);
-                    this.showSuccessAlert('Penjualan berhasil diperbarui!');
                 } else {
                     await this.dm.addSale(saleData);
-                    this.showSuccessAlert('Penjualan berhasil ditambahkan!');
                 }
 
+                // Close form modal first then show success
                 document.getElementById('modal').classList.remove('active');
                 this.renderSales();
                 this.renderStock();
                 this.renderDashboard();
+                this.showSuccessAlert(successMsg);
             } catch (error) {
                 alert(error.message);
             } finally {
@@ -1428,18 +1680,212 @@ class UIManager {
         );
     }
 
+    // Transfer Stock Form & Methods
+    showTransferForm(transferId = null) {
+        const transfer = transferId ? this.dm.getTransfer(transferId) : null;
+        const title = transfer ? 'Edit Transfer' : 'Transfer Stock';
+        const products = this.dm.getAllProducts();
+
+        const formHTML = `
+            <form id="transfer-form">
+                <div class="form-group">
+                    <label>Tanggal *</label>
+                    <input type="date" class="form-input" id="transfer-date" value="${transfer ? transfer.date : new Date().toISOString().split('T')[0]}" required>
+                </div>
+                <div class="form-group">
+                    <label>Produk *</label>
+                    <select class="form-select" id="transfer-product" required>
+                        <option value="">Pilih Produk</option>
+                        ${products.map(p => {
+                            const locStock = this.dm.getStockForProductByLocation(p.id);
+                            return `
+                                <option value="${p.id}" 
+                                    data-sekret="${locStock.sekret}" 
+                                    data-kelas="${locStock.kelas}"
+                                    ${transfer && transfer.productId === p.id ? 'selected' : ''}>
+                                    ${p.name}
+                                </option>
+                            `;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Dari Lokasi *</label>
+                    <select class="form-select" id="transfer-from" required>
+                        <option value="">Pilih Lokasi Asal</option>
+                        <option value="sekret" ${transfer && transfer.fromLocation === 'sekret' ? 'selected' : ''}>Sekretariat</option>
+                        <option value="kelas" ${transfer && transfer.fromLocation === 'kelas' ? 'selected' : ''}>Kelas</option>
+                    </select>
+                    <div id="from-stock-display" style="margin-top: 0.5rem; padding: 0.5rem; background: #e0f2fe; border-radius: 0.25rem; display: none;">
+                        <small style="color: #0c4a6e; font-weight: 600;">Stock tersedia: <span id="from-stock-value">0</span> pcs</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Ke Lokasi *</label>
+                    <select class="form-select" id="transfer-to" required>
+                        <option value="">Pilih Lokasi Tujuan</option>
+                        <option value="sekret" ${transfer && transfer.toLocation === 'sekret' ? 'selected' : ''}>Sekretariat</option>
+                        <option value="kelas" ${transfer && transfer.toLocation === 'kelas' ? 'selected' : ''}>Kelas</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jumlah Transfer *</label>
+                    <input type="number" class="form-input" id="transfer-quantity" value="${transfer ? transfer.quantity : ''}" required min="1">
+                    <small style="color: #6b7280; font-size: 0.75rem;">Tidak boleh melebihi stock di lokasi asal</small>
+                </div>
+                <div class="form-group">
+                    <label>Catatan (Opsional)</label>
+                    <textarea class="form-input" id="transfer-note" rows="2" placeholder="Contoh: Pindah karena stok Sekretariat sudah banyak">${transfer ? (transfer.note || '') : ''}</textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="document.getElementById('modal').classList.remove('active')">Batal</button>
+                    <button type="submit" class="btn btn-primary">Transfer</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal(title, formHTML);
+
+        // Stock validation and display
+        const productSelect = document.getElementById('transfer-product');
+        const fromSelect = document.getElementById('transfer-from');
+        const toSelect = document.getElementById('transfer-to');
+        const quantityInput = document.getElementById('transfer-quantity');
+        const fromStockDisplay = document.getElementById('from-stock-display');
+        const fromStockValue = document.getElementById('from-stock-value');
+
+        let currentFromStock = 0;
+
+        const updateFromStock = () => {
+            const selectedProduct = productSelect.options[productSelect.selectedIndex];
+            const fromLocation = fromSelect.value;
+
+            if (selectedProduct.value && fromLocation) {
+                if (fromLocation === 'sekret') {
+                    currentFromStock = parseInt(selectedProduct.dataset.sekret) || 0;
+                } else if (fromLocation === 'kelas') {
+                    currentFromStock = parseInt(selectedProduct.dataset.kelas) || 0;
+                }
+                fromStockValue.textContent = currentFromStock;
+                fromStockDisplay.style.display = 'block';
+            } else {
+                fromStockDisplay.style.display = 'none';
+                currentFromStock = 0;
+            }
+        };
+
+        productSelect.addEventListener('change', updateFromStock);
+        fromSelect.addEventListener('change', updateFromStock);
+
+        // Initialize if editing
+        if (transfer) {
+            updateFromStock();
+        }
+
+        document.getElementById('transfer-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = document.getElementById('transfer-form');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+
+            const productId = productSelect.value;
+            const fromLocation = fromSelect.value;
+            const toLocation = toSelect.value;
+            const quantity = parseInt(quantityInput.value);
+            const note = document.getElementById('transfer-note').value.trim();
+
+            // Validation
+            if (fromLocation === toLocation) {
+                alert('Lokasi asal dan tujuan tidak boleh sama!');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
+                return;
+            }
+
+            if (quantity > currentFromStock) {
+                alert(`Jumlah transfer (${quantity}) melebihi stock di lokasi asal (${currentFromStock})!`);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
+                return;
+            }
+
+            const transferData = {
+                date: document.getElementById('transfer-date').value,
+                productId,
+                fromLocation,
+                toLocation,
+                quantity,
+                note: note || ''
+            };
+
+            try {
+                if (transfer) {
+                    await this.dm.updateTransfer(transfer.id, transferData);
+                } else {
+                    await this.dm.addTransfer(transferData);
+                }
+
+                const product = this.dm.getProduct(productId);
+                const successMsg = transfer 
+                    ? 'Transfer berhasil diupdate!' 
+                    : `Transfer ${product.name} dari ${fromLocation === 'sekret' ? 'Sekretariat' : 'Kelas'} ke ${toLocation === 'sekret' ? 'Sekretariat' : 'Kelas'} berhasil!`;
+
+                document.getElementById('modal').classList.remove('active');
+                this.renderStock();
+                this.renderDashboard();
+                this.showSuccessAlert(successMsg);
+            } catch (error) {
+                alert('Gagal menyimpan transfer: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHTML;
+            }
+        });
+    }
+
+    deleteTransfer(id) {
+        const transfer = this.dm.getTransfer(id);
+        const product = this.dm.getProduct(transfer.productId);
+        const fromLoc = transfer.fromLocation === 'sekret' ? 'Sekretariat' : 'Kelas';
+        const toLoc = transfer.toLocation === 'sekret' ? 'Sekretariat' : 'Kelas';
+
+        this.showConfirmModal(
+            'Hapus Transfer?',
+            `<div style="text-align: center;">
+                <p style="font-weight: 600; margin-bottom: 0.5rem;">
+                    ${product.name}
+                </p>
+                <p style="color: #6b7280; margin-bottom: 0.5rem;">
+                    Tanggal: ${new Date(transfer.date).toLocaleDateString('id-ID')}
+                </p>
+                <p style="color: #6b7280; margin-bottom: 1rem;">
+                    ${fromLoc} → ${toLoc}: ${transfer.quantity} pcs
+                </p>
+            </div>`,
+            () => {
+                this.dm.deleteTransfer(id);
+                this.renderStock();
+                this.renderDashboard();
+                this.showSuccessAlert('Transfer berhasil dihapus!');
+            }
+        );
+    }
+
     // Stock Rendering
     renderStock() {
         const tbody = document.getElementById('stock-tbody');
         const products = this.dm.getAllProducts();
 
         if (products.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Belum ada data stok</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">Belum ada data stok</td></tr>';
             return;
         }
 
         tbody.innerHTML = products.map((product, index) => {
             const stock = this.dm.getStockForProduct(product.id);
+            const locStock = this.dm.getStockForProductByLocation(product.id);
             let statusClass = 'badge-success';
             let statusText = 'Aman';
             
@@ -1456,9 +1902,11 @@ class UIManager {
                     <td>${index + 1}</td>
                     <td>${product.name}</td>
                     <td>${this.formatCurrency(product.sellPrice)}</td>
-                    <td>${stock.totalRestock}</td>
-                    <td>${stock.totalSold}</td>
-                    <td>${stock.remaining}</td>
+                    <td>${stock.totalRestock} pcs</td>
+                    <td>${stock.totalSold} pcs</td>
+                    <td>${stock.remaining} pcs</td>
+                    <td>${(locStock && locStock.sekret !== undefined ? locStock.sekret : 0)} pcs</td>
+                    <td>${(locStock && locStock.kelas !== undefined ? locStock.kelas : 0)} pcs</td>
                     <td><span class="badge ${statusClass}">${statusText}</span></td>
                 </tr>
             `;
